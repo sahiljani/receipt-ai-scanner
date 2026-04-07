@@ -46,7 +46,7 @@ const PaymentInfoSchema = z.object({
 });
 
 export const ReceiptSchema = z.object({
-  merchant: MerchantSchema.default({}),
+  merchant: MerchantSchema.default(() => ({ name: null, address: null, city: null, state: null, postalCode: null, country: null, phone: null, website: null, taxId: null })),
   date: z.string().nullable().default(null),
   time: z.string().nullable().default(null),
   timezone: z.string().nullable().default(null),
@@ -63,7 +63,7 @@ export const ReceiptSchema = z.object({
   tip: z.number().nullable().default(null),
   total: z.number().default(0),
   currency: z.string().nullable().default(null),
-  payment: PaymentInfoSchema.default({}),
+  payment: PaymentInfoSchema.default(() => ({ method: null, cardBrand: null, cardLastFour: null, transactionId: null, authCode: null, tip: null, cashGiven: null, changeGiven: null })),
   cashier: z.string().nullable().default(null),
   confidence: z.number().min(0).max(1).default(0),
   rawText: z.string().nullable().default(null),
