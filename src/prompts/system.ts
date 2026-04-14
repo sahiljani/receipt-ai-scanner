@@ -36,10 +36,23 @@ RULES:
 4. The "confidence" field is mandatory.
 5. If the image contains no receipt, return: { "merchant": {}, "receiptType": null, "items": [], "taxes": [], "payment": {}, "total": 0, "confidence": 0, "warnings": ["No receipt detected"], "rawText": null }
 6. Quantities are numbers; if not shown on the receipt, use null (implies 1).
+7. items[].productType: classify every item — use the exact allowed values shown in the schema. Do not leave productType out of any item.
 `.trim();
 
-const MINIMAL_SCHEMA = `
-JSON SCHEMA:
+// ── productType schema fragment ─────────────────────────────────────────────
+
+function productTypeField(productTypes: string[] | undefined): string {
+  if (productTypes && productTypes.length > 0) {
+    const union = productTypes.map((t) => `"${t}"`).join(' | ');
+    return `"productType": ${union} | null,  // pick the closest match, or null if none fit`;
+  }
+  return `"productType": string | null,  // classify freely (e.g. "beverages", "dairy", "bakery", "snacks", "household", "electronics", "clothing") — use null only if truly unclassifiable`;
+}
+
+// ── Schema builders ─────────────────────────────────────────────────────────
+
+function buildMinimalSchema(productTypes: string[] | undefined): string {
+  return `JSON SCHEMA:
 {
   "merchant": {
     "name": string | null
@@ -52,17 +65,18 @@ JSON SCHEMA:
     {
       "description": string,
       "totalPrice": number,
+      ${productTypeField(productTypes)}
       "isVoided": boolean
     }
   ],
   "confidence": number,
   "rawText": string | null,
   "warnings": string[]
+}`;
 }
-`.trim();
 
-const STANDARD_SCHEMA = `
-JSON SCHEMA:
+function buildStandardSchema(productTypes: string[] | undefined): string {
+  return `JSON SCHEMA:
 {
   "merchant": {
     "name": string | null,
@@ -92,6 +106,7 @@ JSON SCHEMA:
       "sku": string | null,
       "category": string | null,
       "discountAmount": number | null,
+      ${productTypeField(productTypes)}
       "isVoided": boolean
     }
   ],
@@ -123,11 +138,11 @@ JSON SCHEMA:
   "confidence": number,
   "rawText": string | null,
   "warnings": string[]
+}`;
 }
-`.trim();
 
-const FULL_SCHEMA = `
-JSON SCHEMA:
+function buildFullSchema(productTypes: string[] | undefined): string {
+  return `JSON SCHEMA:
 {
   "merchant": {
     "name": string | null,
@@ -161,6 +176,7 @@ JSON SCHEMA:
       "discountAmount": number | null,
       "discountLabel": string | null,
       "notes": string | null,
+      ${productTypeField(productTypes)}
       "isVoided": boolean
     }
   ],
@@ -198,46 +214,26 @@ FULL DETAIL FIELD NOTES:
 - items[].barcode: barcode or UPC printed on the receipt line, if visible
 - items[].brand: brand name if distinct from the item description (e.g. "Coca-Cola" vs "Cola 600ml")
 - items[].discountLabel: human-readable discount label printed on the receipt (e.g. "10% OFF", "BOGO", "LOYALTY DISCOUNT")
-- items[].notes: modifiers or customisation notes (e.g. "ADD CHEESE", "NO ONION", "EXTRA SHOT")
-`.trim();
+- items[].notes: modifiers or customisation notes (e.g. "ADD CHEESE", "NO ONION", "EXTRA SHOT")`;
+}
 
-function schemaForDetail(detail: ScanDetail): string {
+function schemaForDetail(detail: ScanDetail, productTypes: string[] | undefined): string {
   switch (detail) {
-    case 'minimal': return MINIMAL_SCHEMA;
-    case 'full': return FULL_SCHEMA;
-    default: return STANDARD_SCHEMA;
+    case 'minimal': return buildMinimalSchema(productTypes);
+    case 'full':    return buildFullSchema(productTypes);
+    default:        return buildStandardSchema(productTypes);
   }
 }
 
-const FREE_PRODUCT_TYPE_INSTRUCTION = `PRODUCT TYPE CLASSIFICATION:
-For each item in the "items" array, add a "productType" field.
-Use your own knowledge to classify each item into a short, descriptive product category
-(e.g. "beverages", "dairy", "bakery", "snacks", "household", "personal-care", "electronics",
-"clothing", "alcohol", "health", "baby", "pet", "tobacco", "automotive", "office-supplies",
-or any other appropriate category).
-Use a consistent, lowercase, hyphenated label. Use null only if the item truly cannot be classified.`;
-
-function restrictedProductTypeInstruction(productTypes: string[]): string {
-  const list = productTypes.map((t) => `"${t}"`).join(', ');
-  return `PRODUCT TYPE CLASSIFICATION:
-For each item in the "items" array, add a "productType" field.
-Set it to the closest match from this exact list: [${list}].
-If no category from the list is a reasonable match, use null.
-Do not invent values outside this list. The value must be a string from the list or null.`;
-}
+// ── Public API ──────────────────────────────────────────────────────────────
 
 export function buildSystemPrompt(detail: ScanDetail = 'standard', productTypes?: string[]): string {
-  const parts = [PREAMBLE, schemaForDetail(detail), SHARED_FIELD_NOTES];
-
-  if (productTypes && productTypes.length > 0) {
-    parts.push(restrictedProductTypeInstruction(productTypes));
-  } else {
-    // No list supplied — let the LLM classify freely using its own knowledge.
-    parts.push(FREE_PRODUCT_TYPE_INSTRUCTION);
-  }
-
-  parts.push(SHARED_RULES);
-  return parts.join('\n\n');
+  return [
+    PREAMBLE,
+    schemaForDetail(detail, productTypes),
+    SHARED_FIELD_NOTES,
+    SHARED_RULES,
+  ].join('\n\n');
 }
 
 // Convenience export for callers that don't use the detail option

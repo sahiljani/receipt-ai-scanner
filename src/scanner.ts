@@ -26,14 +26,9 @@ function resolveSystemPrompt(
   detail: ScanDetail | undefined,
   productTypes: string[] | undefined,
 ): string {
-  if (configHasCustomPrompt) {
-    // Honour the custom prompt but still inject productType instructions if requested.
-    if (productTypes && productTypes.length > 0) {
-      const list = productTypes.map((t) => `"${t}"`).join(', ');
-      return `${configSystemPrompt}\n\nPRODUCT TYPE CLASSIFICATION:\nFor each item, add a "productType" field set to the closest match from: [${list}]. Use null if no match.`;
-    }
-    return configSystemPrompt;
-  }
+  // If the user supplied a fully custom systemPrompt in config, honour it as-is.
+  // productType enforcement still runs post-parse via enforceProductTypes.
+  if (configHasCustomPrompt) return configSystemPrompt;
   return buildSystemPrompt(detail ?? 'standard', productTypes);
 }
 
