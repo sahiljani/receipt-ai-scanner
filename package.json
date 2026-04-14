@@ -1,9 +1,18 @@
 {
   "name": "receipt-ai-scanner",
-  "version": "0.1.0",
+  "version": "1.1.0",
   "description": "Scan receipt images using vision-enabled LLMs with support for OpenAI, Anthropic, and OpenAI-compatible APIs",
   "author": "Sahil Jani <iam@janisahil.com>",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sahiljani/receipt-ai-scanner.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sahiljani/receipt-ai-scanner/issues"
+  },
+  "homepage": "https://github.com/sahiljani/receipt-ai-scanner#readme",
+  "sideEffects": false,
   "keywords": [
     "receipt",
     "ocr",

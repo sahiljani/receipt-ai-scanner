@@ -23,6 +23,11 @@ export const LineItemSchema = z.object({
   category: z.string().nullable().default(null),
   discountAmount: z.number().nullable().default(null),
   isVoided: z.boolean().default(false),
+  barcode: z.string().nullable().default(null),
+  brand: z.string().nullable().default(null),
+  discountLabel: z.string().nullable().default(null),
+  notes: z.string().nullable().default(null),
+  productType: z.string().nullable().default(null),
 });
 
 const TaxEntrySchema = z.object({
@@ -47,6 +52,7 @@ const PaymentInfoSchema = z.object({
 
 export const ReceiptSchema = z.object({
   merchant: MerchantSchema.default(() => ({ name: null, address: null, city: null, state: null, postalCode: null, country: null, phone: null, website: null, taxId: null })),
+  receiptType: z.enum(['grocery', 'restaurant', 'fuel', 'pharmacy', 'retail', 'other']).nullable().default(null),
   date: z.string().nullable().default(null),
   time: z.string().nullable().default(null),
   timezone: z.string().nullable().default(null),

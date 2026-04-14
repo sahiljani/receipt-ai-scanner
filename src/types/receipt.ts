@@ -22,6 +22,8 @@ export interface Merchant {
   taxId: string | null;
 }
 
+export type ReceiptType = 'grocery' | 'restaurant' | 'fuel' | 'pharmacy' | 'retail' | 'other';
+
 export interface LineItem {
   description: string;
   quantity: number | null;
@@ -31,6 +33,13 @@ export interface LineItem {
   category: string | null;
   discountAmount: number | null;
   isVoided: boolean;
+  // v1.1.0 — full detail fields
+  barcode: string | null;
+  brand: string | null;
+  discountLabel: string | null;
+  notes: string | null;
+  // v1.1.0 — client-supplied product type classification
+  productType: string | null;
 }
 
 export interface TaxEntry {
@@ -69,6 +78,7 @@ export interface ReceiptData {
   total: number;
   currency: string | null;
   payment: PaymentInfo;
+  receiptType: ReceiptType | null;
   cashier: string | null;
   confidence: number;
   rawText: string | null;

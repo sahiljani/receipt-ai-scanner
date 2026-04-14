@@ -41,6 +41,7 @@ export function parseReceiptFromText(text: string, strict: boolean): ReceiptData
   // Ensure required fields have safe defaults
   return {
     merchant: soft.merchant ?? { name: null, address: null, city: null, state: null, postalCode: null, country: null, phone: null, website: null, taxId: null },
+    receiptType: soft.receiptType ?? null,
     date: soft.date ?? null,
     time: soft.time ?? null,
     timezone: soft.timezone ?? null,

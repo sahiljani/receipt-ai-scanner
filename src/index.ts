@@ -12,7 +12,7 @@ export type { OpenAICompatibleProviderConfig } from './providers/openai-compatib
 export { ReceiptSchema, LineItemSchema } from './utils/validate.js';
 export { validateReceiptData, validateReceiptDataSoft } from './utils/validate.js';
 
-export { DEFAULT_SYSTEM_PROMPT } from './prompts/system.js';
+export { DEFAULT_SYSTEM_PROMPT, buildSystemPrompt } from './prompts/system.js';
 
 export type {
   ReceiptData,
@@ -22,6 +22,7 @@ export type {
   Merchant,
   ImageInput,
   SupportedMediaType,
+  ReceiptType,
 } from './types/receipt.js';
 
 export type {
@@ -29,6 +30,7 @@ export type {
   ScanOptions,
   ScanResult,
   StreamChunk,
+  ScanDetail,
 } from './types/options.js';
 
 export type { ScannerProvider, TokenUsage } from './types/provider.js';

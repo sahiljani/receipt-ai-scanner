@@ -1,6 +1,6 @@
-import { DEFAULT_SYSTEM_PROMPT } from './prompts/system.js';
+import { buildSystemPrompt, DEFAULT_SYSTEM_PROMPT } from './prompts/system.js';
 import { TimeoutError } from './types/errors.js';
-import type { ScannerConfig, ScanOptions, ScanResult, StreamChunk } from './types/options.js';
+import type { ScanDetail, ScannerConfig, ScanOptions, ScanResult, StreamChunk } from './types/options.js';
 import type { ProviderContentBlock, ProviderMessage, ProviderRequest, ScannerProvider } from './types/provider.js';
 import type { ImageInput, SupportedMediaType } from './types/receipt.js';
 import { resolveImageInput } from './utils/image.js';
@@ -18,6 +18,31 @@ function buildUserMessage(
   const content: ProviderContentBlock[] = [imageBlock];
   content.push({ type: 'text', text: userPrompt ?? 'Extract all receipt data from this image and return it as JSON.' });
   return { role: 'user', content };
+}
+
+function resolveSystemPrompt(
+  configSystemPrompt: string,
+  configHasCustomPrompt: boolean,
+  detail: ScanDetail | undefined,
+  productTypes: string[] | undefined,
+): string {
+  if (configHasCustomPrompt) {
+    // Honour the custom prompt but still inject productType instructions if requested.
+    if (productTypes && productTypes.length > 0) {
+      const list = productTypes.map((t) => `"${t}"`).join(', ');
+      return `${configSystemPrompt}\n\nPRODUCT TYPE CLASSIFICATION:\nFor each item, add a "productType" field set to the closest match from: [${list}]. Use null if no match.`;
+    }
+    return configSystemPrompt;
+  }
+  return buildSystemPrompt(detail ?? 'standard', productTypes);
+}
+
+function enforceProductTypes(items: import('./types/receipt.js').ReceiptData['items'], productTypes: string[]): import('./types/receipt.js').ReceiptData['items'] {
+  const allowed = new Set(productTypes);
+  return items.map((item) => ({
+    ...item,
+    productType: item.productType !== null && allowed.has(item.productType) ? item.productType : null,
+  }));
 }
 
 function buildRequest(
@@ -46,6 +71,8 @@ export class ReceiptScanner {
   private provider: ScannerProvider;
   private configModel: string | undefined;
   private systemPrompt: string;
+  private hasCustomPrompt: boolean;
+  private systemPromptAppend: string | undefined;
   private maxTokens: number;
   private temperature: number;
   private strictValidation: boolean;
@@ -58,12 +85,16 @@ export class ReceiptScanner {
     this.temperature = config.temperature ?? 0;
     this.strictValidation = config.strictValidation ?? false;
     this.timeoutMs = config.timeoutMs ?? 0;
+    this.systemPromptAppend = config.systemPromptAppend;
 
     if (config.systemPrompt) {
+      this.hasCustomPrompt = true;
       this.systemPrompt = config.systemPrompt;
     } else if (config.systemPromptAppend) {
+      this.hasCustomPrompt = true;
       this.systemPrompt = `${DEFAULT_SYSTEM_PROMPT}\n\n${config.systemPromptAppend}`;
     } else {
+      this.hasCustomPrompt = false;
       this.systemPrompt = DEFAULT_SYSTEM_PROMPT;
     }
   }
@@ -91,12 +122,13 @@ export class ReceiptScanner {
     const start = Date.now();
     const imageData = await resolveImageInput(input);
     const { signal, cleanup } = this.withTimeout(options.signal);
+    const systemPrompt = resolveSystemPrompt(this.systemPrompt, this.hasCustomPrompt, options.detail, options.productTypes);
 
     try {
       const request = buildRequest(
         this.provider,
         this.configModel,
-        this.systemPrompt,
+        systemPrompt,
         imageData,
         this.maxTokens,
         this.temperature,
@@ -104,7 +136,10 @@ export class ReceiptScanner {
         signal,
       );
       const response = await this.provider.complete(request);
-      const data = parseReceiptFromText(response.text, this.strictValidation);
+      let data = parseReceiptFromText(response.text, this.strictValidation);
+      if (options.productTypes && options.productTypes.length > 0) {
+        data = { ...data, items: enforceProductTypes(data.items, options.productTypes) };
+      }
 
       const result: ScanResult = {
         data,
@@ -126,10 +161,11 @@ export class ReceiptScanner {
   ): AsyncGenerator<StreamChunk> {
     const start = Date.now();
     const imageData = await resolveImageInput(input);
+    const systemPrompt = resolveSystemPrompt(this.systemPrompt, this.hasCustomPrompt, options.detail, options.productTypes);
     const request = buildRequest(
       this.provider,
       this.configModel,
-      this.systemPrompt,
+      systemPrompt,
       imageData,
       this.maxTokens,
       this.temperature,
@@ -144,7 +180,10 @@ export class ReceiptScanner {
         yield { type: 'delta', delta };
       }
 
-      const data = parseReceiptFromText(rawText, this.strictValidation);
+      let data = parseReceiptFromText(rawText, this.strictValidation);
+      if (options.productTypes && options.productTypes.length > 0) {
+        data = { ...data, items: enforceProductTypes(data.items, options.productTypes) };
+      }
       const result: ScanResult = {
         data,
         rawResponse: rawText,
@@ -163,10 +202,11 @@ export class ReceiptScanner {
 
   async scanRaw(input: ImageInput, options: ScanOptions = {}): Promise<string> {
     const imageData = await resolveImageInput(input);
+    const systemPrompt = resolveSystemPrompt(this.systemPrompt, this.hasCustomPrompt, options.detail, options.productTypes);
     const request = buildRequest(
       this.provider,
       this.configModel,
-      this.systemPrompt,
+      systemPrompt,
       imageData,
       this.maxTokens,
       this.temperature,
