@@ -1,19 +1,21 @@
 name: Publish to npm
 
 on:
-  release:
-    types: [published]
+  push:
+    branches: [main]
 
 jobs:
   publish:
     name: Publish
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      id-token: write  # required for npm provenance
+      contents: write   # to push git tags
+      id-token: write   # for npm provenance
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # full history needed to check tags
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -25,26 +27,45 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check if version is already published
+        id: version_check
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          echo "pkg_version=$PKG_VERSION" >> $GITHUB_OUTPUT
+
+          PUBLISHED=$(npm view receipt-ai-scanner@$PKG_VERSION version 2>/dev/null || echo "")
+          if [ "$PUBLISHED" = "$PKG_VERSION" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "⏭ v$PKG_VERSION already on npm — skipping publish"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+            echo "🚀 v$PKG_VERSION not on npm — will publish"
+          fi
+
       - name: Typecheck
+        if: steps.version_check.outputs.skip == 'false'
         run: npm run typecheck
 
       - name: Build
+        if: steps.version_check.outputs.skip == 'false'
         run: npm run build
 
       - name: Test
+        if: steps.version_check.outputs.skip == 'false'
         run: npm test
 
-      - name: Verify package version matches release tag
-        run: |
-          PKG_VERSION="v$(node -p "require('./package.json').version")"
-          TAG="${{ github.ref_name }}"
-          if [ "$PKG_VERSION" != "$TAG" ]; then
-            echo "❌ package.json version ($PKG_VERSION) does not match release tag ($TAG)"
-            exit 1
-          fi
-          echo "✓ Version $PKG_VERSION matches tag $TAG"
-
-      - name: Publish
+      - name: Publish to npm
+        if: steps.version_check.outputs.skip == 'false'
         run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Tag the release
+        if: steps.version_check.outputs.skip == 'false'
+        run: |
+          VERSION=${{ steps.version_check.outputs.pkg_version }}
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "v$VERSION"
+          git push origin "v$VERSION"
+          echo "✓ Tagged v$VERSION"
