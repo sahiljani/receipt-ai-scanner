@@ -1,6 +1,6 @@
 {
   "name": "receipt-ai-scanner",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Scan receipt images using vision-enabled LLMs with support for OpenAI, Anthropic, and OpenAI-compatible APIs",
   "author": "Sahil Jani <iam@janisahil.com>",
   "license": "MIT",
